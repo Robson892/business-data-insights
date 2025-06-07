@@ -1,78 +1,62 @@
 from fpdf import FPDF
-import os
 import tempfile
-from datetime import datetime
+import os
+from io import BytesIO
+import matplotlib.pyplot as plt
+import pandas as pd
 
-class PDF(FPDF):
-    def header(self):
-        self.set_font("Arial", "B", 14)
-        self.cell(0, 10, "Relatório Analítico de Dados", ln=True, align="C")
-        self.set_font("Arial", "", 10)
-        self.cell(0, 10, f"Tipo de Gráfico: {self.tipo_grafico}", ln=True, align="C")
-        self.ln(5)
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font("Arial", "I", 8)
-        self.cell(0, 10, f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", align="C")
-
-    def chapter_body(self, df, colunas, col_num, stats, total_registros, registros_filtrados):
-        self.set_font("Arial", "", 10)
-
-        # Resumo do filtro
-        self.cell(0, 10, f"Total de registros: {total_registros}", ln=True)
-        self.cell(0, 10, f"Registros após filtros: {registros_filtrados}", ln=True)
-        self.ln(3)
-
-        # Estatísticas
-        self.set_font("Arial", "B", 11)
-        self.cell(0, 10, f"Resumo Estatístico da Coluna: {col_num}", ln=True)
-        self.set_font("Arial", "", 10)
-        for k, v in stats.items():
-            self.cell(0, 8, f"{k}: {v:.2f}", ln=True)
-
-        self.ln(5)
-        self.set_font("Arial", "B", 11)
-        self.cell(0, 10, "Prévia dos dados (até 20 linhas):", ln=True)
-        self.set_font("Arial", "", 10)
-        self.ln(2)
-        for index, row in df[colunas].head(20).iterrows():
-            texto = " | ".join(f"{k}: {v}" for k, v in row.items())
-            self.multi_cell(0, 8, texto)
-            self.ln(1)
-
-def gerar_pdf(df, colunas, tipo_grafico, fig, col_num, total_registros):
-    pdf = PDF()
-    pdf.tipo_grafico = tipo_grafico
+def gerar_pdf(df, colunas_selecionadas, tipo_grafico, fig, coluna_num, total_registros):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    # Resumo estatístico
-    stats = {
-        "Média": df[col_num].mean(),
-        "Mediana": df[col_num].median(),
-        "Desvio Padrão": df[col_num].std(),
-        "Mínimo": df[col_num].min(),
-        "Máximo": df[col_num].max()
-    }
+    # Cabeçalho
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, "Relatório Automático", ln=True, align="C")
 
-    pdf.chapter_body(
-        df=df,
-        colunas=colunas,
-        col_num=col_num,
-        stats=stats,
-        total_registros=total_registros,
-        registros_filtrados=len(df)
-    )
+    pdf.set_font("Arial", size=12)
+    pdf.cell(0, 10, f"Total de registros: {total_registros}", ln=True)
 
-    # Salvar e inserir gráfico
-    tmpfile = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    tmpfile.close()
-    fig.savefig(tmpfile.name)
+    # Estatísticas coluna numérica
+    if coluna_num:
+        media = df[coluna_num].mean()
+        mediana = df[coluna_num].median()
+        std = df[coluna_num].std()
+        minimo = df[coluna_num].min()
+        maximo = df[coluna_num].max()
+        pdf.cell(0, 8, f"Resumo estatístico da coluna {coluna_num}:", ln=True)
+        pdf.cell(0, 8, f"Média: {media:.2f} | Mediana: {mediana:.2f} | Desvio Padrão: {std:.2f}", ln=True)
+        pdf.cell(0, 8, f"Mínimo: {minimo:.2f} | Máximo: {maximo:.2f}", ln=True)
 
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Gráfico Gerado:", ln=True)
-    pdf.image(tmpfile.name, x=10, w=pdf.w - 20)
-    os.remove(tmpfile.name)
+    # Gerar gráfico como imagem temporária
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+        fig.savefig(tmpfile.name, bbox_inches='tight')
+        pdf.image(tmpfile.name, x=10, w=pdf.w - 20)
+        tmpfile.close()
+        os.unlink(tmpfile.name)
 
+    # Tabela simplificada - primeiras 10 linhas das colunas selecionadas
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, "Tabela de dados (amostra):", ln=True)
+
+    # Limitar a 10 linhas e colunas selecionadas para tabela no PDF
+    tabela = df[colunas_selecionadas].head(10) if colunas_selecionadas else df.head(10)
+    pdf.set_font("Arial", size=10)
+    col_width = (pdf.w - 20) / max(len(tabela.columns), 1)
+    row_height = 7
+
+    # Cabeçalho da tabela
+    for col in tabela.columns:
+        pdf.cell(col_width, row_height, str(col), border=1)
+    pdf.ln(row_height)
+
+    # Linhas da tabela
+    for i, row in tabela.iterrows():
+        for col in tabela.columns:
+            texto = str(row[col])[:15]
+            pdf.cell(col_width, row_height, texto, border=1)
+        pdf.ln(row_height)
+
+    # Salvar PDF
     pdf.output("grafico.pdf")

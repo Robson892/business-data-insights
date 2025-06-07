@@ -125,9 +125,24 @@ if arquivo:
 
                 st.pyplot(fig)
 
+                # Botão para gerar PDF e download
                 if st.button("📥 Baixar Gráfico e Tabela em PDF"):
-                    total_registros = len(pd.read_excel(arquivo))
-                    gerar_pdf(df, colunas_selecionadas, tipo_grafico, fig, col_num, total_registros)
+                    total_registros = len(df)  # Já filtrado
+                    try:
+                        gerar_pdf(df, colunas_selecionadas, tipo_grafico, fig, col_num, total_registros)
+
+                        with open("grafico.pdf", "rb") as f:
+                            pdf_bytes = f.read()
+
+                        st.success("PDF gerado com sucesso!")
+                        st.download_button(
+                            label="📄 Baixar PDF",
+                            data=pdf_bytes,
+                            file_name="relatorio.pdf",
+                            mime="application/pdf"
+                        )
+                    except Exception as e:
+                        st.error(f"Erro ao gerar ou preparar PDF para download: {e}")
 
             except Exception as e:
                 st.error(f"Erro ao gerar o gráfico: {e}")
@@ -170,7 +185,10 @@ with st.form("form_email"):
 
 if enviar:
     if destinatario and remetente and senha:
-        sucesso, mensagem = enviar_email(destinatario, "Relatório", "Segue o relatório em anexo.", "grafico.pdf", remetente, senha)
-        st.success(mensagem) if sucesso else st.error(mensagem)
+        sucesso, mensagem = enviar_email(destinatario, remetente, senha)
+        if sucesso:
+            st.success(mensagem)
+        else:
+            st.error(mensagem)
     else:
-        st.warning("⚠️ Preencha todos os campos.")
+        st.error("Por favor, preencha todos os campos do formulário de e-mail.")
