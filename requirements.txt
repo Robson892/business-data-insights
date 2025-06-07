@@ -1,0 +1,5 @@
+pandas
+matplotlib
+jinja2
+pdfkit
+openpyxl

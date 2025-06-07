@@ -1,0 +1,9 @@
+[
+  {
+    "email": "taticop@hotmail.com",
+    "frequencia": "diario",
+    "hora": "19:10",
+    "colunas": ["Produto", "Quantidade"],
+    "grafico": "Gráfico de Barras"
+  }
+]
